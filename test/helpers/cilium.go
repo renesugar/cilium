@@ -70,9 +70,14 @@ func (s *SSHMeta) EndpointGet(id string) *models.Endpoint {
 	var data []models.Endpoint
 	endpointGetCmd := fmt.Sprintf("endpoint get %s", id)
 	res := s.ExecCilium(endpointGetCmd)
+	if !res.WasSuccessful() {
+		s.logger.Infof("EndpointGet fail: %s", res.CombineOutput())
+		return nil
+	}
 	err := res.Unmarshal(&data)
 	if err != nil {
-		s.logger.WithError(err).Errorf("EndpointGet fail %s", id)
+		s.logger.WithError(err).Errorf("EndpointGet fail %s, data: %s", id,
+			res.CombineOutput())
 		return nil
 	}
 	if len(data) > 0 {

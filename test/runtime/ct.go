@@ -461,6 +461,7 @@ var _ = Describe("RuntimeValidatedConntrackTable", func() {
 			testReach(testCase.src[helpers.Name], testCase.destination[testCase.kind], testCase.dstPort, testCase.mode, BeTrue)
 		}
 
+		By("Removing policy `l3-l4-policy-server-3`")
 		res := vm.PolicyDel("l3-l4-policy-server-3")
 		res.WasSuccessful()
 
@@ -481,13 +482,13 @@ var _ = Describe("RuntimeValidatedConntrackTable", func() {
 					}]}
 				}]
 			}],
-			"labels": ["l3-l4-policy-server-3"]
+			"labels": ["l3-l4-l7-policy-server-3"]
 		}]`
 
 		_, err = vm.PolicyRenderAndImport(policy2)
 		Expect(err).To(BeNil(), "Installing an L3-L4-L7 policy")
 
-		By("Testing connectivity between client and server 3 only on /public")
+		By("Testing connectivity between client and server 3 on /public and non-connectivity on /private")
 		for _, testCase := range testCombinations {
 			assertfn := BeTrue
 			if strings.Contains(strings.ToLower(testCase.mode), "private") {
@@ -496,8 +497,8 @@ var _ = Describe("RuntimeValidatedConntrackTable", func() {
 			testReach(testCase.src[helpers.Name], testCase.destination[testCase.kind], testCase.dstPort, testCase.mode, assertfn)
 		}
 
-		By("Removing policy `l3-l4-policy-server-3`")
-		res = vm.PolicyDel("l3-l4-policy-server-3")
+		By("Removing policy `l3-l4-l7-policy-server-3`")
+		res = vm.PolicyDel("l3-l4-l7-policy-server-3")
 		res.WasSuccessful()
 
 		By("Installing other L7 rule after testing L7. The previous rule shouldn't work!")
@@ -517,7 +518,7 @@ var _ = Describe("RuntimeValidatedConntrackTable", func() {
 						}]}
 					}]
 				}],
-				"labels": ["l3-l4-l7-policy-server-3"]
+				"labels": ["l3-l4-l7-dummy-policy-server-3"]
 			}]`
 
 		_, err = vm.PolicyRenderAndImport(policyL7Dummy)
@@ -589,7 +590,7 @@ var _ = Describe("RuntimeValidatedConntrackTable", func() {
 		_, err = vm.PolicyRenderAndImport(policyL7)
 		Expect(err).To(BeNil(), "Installing an L3-L4-L7 policy")
 
-		By("Testing connectivity to /public and non-connectivity to /private")
+		By("Testing connectivity to /public and non-connectivity to /private through the proxy")
 		for _, testCase := range testCombinations {
 			assertfn := BeTrue
 			if strings.Contains(strings.ToLower(testCase.mode), "private") {
@@ -675,6 +676,19 @@ var _ = Describe("RuntimeValidatedConntrackTable", func() {
 		Expect(err).To(BeNil())
 		Expect(data).To(BeNumerically(comparator, 4), "CT map should have exactly 4 entries or less between server-3 and client")
 
+		// Re-enable policy enforcement on every endpoint on ingress, for the
+		// policy to have any effect at all.
+		// #FIXME remove these 6 lines once GH-2496 is fixed
+		epIDs, err = vm.GetEndpointsIds()
+		Expect(err).To(BeNil(), "Getting endpoints identity IDs")
+		for _, v := range epIDs {
+			status := vm.EndpointSetConfig(v, helpers.OptionIngressPolicy, "true")
+			Expect(status).To(BeTrue(), "Cannot update %s", helpers.OptionIngressPolicy)
+		}
+
+		areEndpointsReady = vm.WaitEndpointsReady()
+		Expect(areEndpointsReady).Should(BeTrue(), "Endpoints not ready after timeout")
+
 		policyL7 := `[{
 	    "endpointSelector": {"matchLabels":{"id.server-3":""}},
 	    "ingress": [{
@@ -694,7 +708,7 @@ var _ = Describe("RuntimeValidatedConntrackTable", func() {
 
 		By("Installing L3-L4-L7 policy")
 		_, err = vm.PolicyRenderAndImport(policyL7)
-		Expect(err).To(BeNil(), "Installing an L3-L4 policy")
+		Expect(err).To(BeNil(), "Installing an L3-L4-L7 policy")
 
 		By("Testing connectivity between client and server-3 on all HTTP endpoints")
 		for _, testCase := range testCombinations {
