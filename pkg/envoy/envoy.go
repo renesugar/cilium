@@ -18,6 +18,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
@@ -150,18 +151,35 @@ func StartEnvoy(adminPort uint32, stateDir, logPath string, baseID uint64) *Envo
 	// case no one reader reads it.
 	started := make(chan bool, 1)
 	go func() {
-		logger := &lumberjack.Logger{
-			Filename:   logPath,
-			MaxSize:    100, // megabytes
-			MaxBackups: 3,
-			MaxAge:     28,   //days
-			Compress:   true, // disabled by default
+		var logger *lumberjack.Logger
+		var logFormat string
+		if logPath != "" {
+			// Use the Envoy default log format when logging to a separate file
+			logFormat = "[%Y-%m-%d %T.%e][%t][%l][%n] %v"
+			logger = &lumberjack.Logger{
+				Filename:   logPath,
+				MaxSize:    100, // megabytes
+				MaxBackups: 3,
+				MaxAge:     28,   //days
+				Compress:   true, // disabled by default
+			}
+			defer logger.Close()
+		} else {
+			// Use log format that looks like Cilium logs when integrating logs
+			// The logs will be reported as coming from the cilium-agent, so
+			// we add the thread id to be able to differentiate between Envoy's
+			// main and worker threads.
+			logFormat = "level=%l msg=\"%v\" subsys=envoy-%n thread=%t"
 		}
-		defer logger.Close()
 		for {
-			cmd := exec.Command("cilium-envoy", "-l", mapLogLevel(log.Level), "-c", bootstrapPath, "--base-id", strconv.FormatUint(baseID, 10))
-			cmd.Stderr = logger
-			cmd.Stdout = logger
+			cmd := exec.Command("cilium-envoy", "-l", mapLogLevel(log.Level), "-c", bootstrapPath, "--base-id", strconv.FormatUint(baseID, 10), "--log-format", logFormat)
+			if logger != nil {
+				cmd.Stderr = logger
+				cmd.Stdout = logger
+			} else {
+				cmd.Stderr = os.Stderr
+				cmd.Stdout = os.Stdout
+			}
 
 			if err := cmd.Start(); err != nil {
 				log.WithError(err).Warn("Envoy: Failed to start proxy")
