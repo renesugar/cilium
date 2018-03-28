@@ -41,7 +41,7 @@ const (
 
 	// CustomResourceDefinitionSchemaVersion is semver-conformant version of CRD schema
 	// Used to determine if CRD needs to be updated in cluster
-	CustomResourceDefinitionSchemaVersion = "1.5"
+	CustomResourceDefinitionSchemaVersion = "1.6"
 
 	// CustomResourceDefinitionSchemaVersionKey is key to label which holds the CRD schema version
 	CustomResourceDefinitionSchemaVersionKey = "io.cilium.k8s.crd.schema.version"
@@ -120,13 +120,13 @@ func CreateCustomResourceDefinitions(clientset apiextensionsclient.Interface) er
 func createCNPCRD(clientset apiextensionsclient.Interface) error {
 	var (
 		// CustomResourceDefinitionSingularName is the singular name of custom resource definition
-		CustomResourceDefinitionSingularName = "ciliumnetworkpolicy"
+		CustomResourceDefinitionSingularName = "ciliumnetworkpolicyv2"
 
 		// CustomResourceDefinitionPluralName is the plural name of custom resource definition
 		CustomResourceDefinitionPluralName = "ciliumnetworkpolicies"
 
 		// CustomResourceDefinitionShortNames are the abbreviated names to refer to this CRD's instances
-		CustomResourceDefinitionShortNames = []string{"cnp", "ciliumnp"}
+		CustomResourceDefinitionShortNames = []string{"cnpv2", "ciliumnpv2"}
 
 		// CustomResourceDefinitionKind is the Kind name of custom resource definition
 		CustomResourceDefinitionKind = "CiliumNetworkPolicy"
